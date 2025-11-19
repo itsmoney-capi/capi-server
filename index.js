@@ -40,50 +40,45 @@ app.post("/capi", async (req, res) => {
 });
 
 // --------------------------------------------
-// GOOGLE ADS CAPI (Enhanced Conversions) 
+// GOOGLE ADS CAPI (Simples / Sem OAuth)
 // POST /google-ads
 // --------------------------------------------
 app.post("/google-ads", async (req, res) => {
   try {
     console.log("Payload recebido do GTM (Google Ads):", req.body);
 
-    const payload = req.body;
+    const { gclid, email, phone, value = 0, currency = "BRL" } = req.body;
 
-    const googlePayload = {
-      conversion_action: process.env.GOOGLE_CONVERSION_ACTION,
-      conversion_date_time: new Date().toISOString().replace("Z", "-03:00"),
-      conversion_value: payload.value || 0,
-      currency_code: "BRL",
-      gclid: payload.gclid || null,
-      wbraid: payload.wbraid || null,
-      gbraid: payload.gbraid || null,
-      user_identifiers: [
-        payload.email ? { hashed_email: payload.email } : null,
-        payload.phone ? { hashed_phone_number: payload.phone } : null
-      ].filter(Boolean)
-    };
+    const conversionId = process.env.GOOGLE_CONVERSION_ID;
+    const conversionLabel = process.env.GOOGLE_CONVERSION_LABEL;
 
-    const response = await fetch(
-      `https://googleads.googleapis.com/v13/customers/${process.env.GOOGLE_CUSTOMER_ID}:uploadClickConversions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.GOOGLE_ACCESS_TOKEN}`
-        },
-        body: JSON.stringify({
-          conversions: [googlePayload],
-          partial_failure: false
-        })
-      }
-    );
+    if (!conversionId || !conversionLabel) {
+      return res.status(400).json({ error: "Falta configurar GOOGLE_CONVERSION_ID ou GOOGLE_CONVERSION_LABEL" });
+    }
 
-    const result = await response.json();
-    console.log("Google Ads Response:", result);
+    // URL oficial Google Ads Conversion Ping (Enhanced Conversions)
+    const googleUrl = `https://www.google.com/pagead/conversion/${conversionId}/?label=${conversionLabel}&guid=ON&script=0`;
+
+    const payload = new URLSearchParams({
+      gclid: gclid || "",
+      email: email || "",
+      phone: phone || "",
+      value: value,
+      currency: currency
+    });
+
+    const response = await fetch(googleUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: payload
+    });
+
+    const textResponse = await response.text();
+    console.log("Google Ads Response:", textResponse);
 
     return res.status(200).json({
       ok: true,
-      google_resultado: result
+      google_resultado: textResponse
     });
 
   } catch (error) {
